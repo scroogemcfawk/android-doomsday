@@ -1,5 +1,6 @@
 package com.example.exam
 
+import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlin.random.Random
 
@@ -17,8 +18,16 @@ class TaskSupplier(val tasks: HashMap<Int, Task>) {
 //        init()
     }
 
+    operator fun set(id: Int, task: Task) {
+        tasks[id] = task
+    }
+
     fun add(task: Task) {
         tasks[nextId()] = task
+    }
+
+    fun delete(id: Int) {
+        tasks.remove(id)
     }
 
     private fun init() {
@@ -27,25 +36,25 @@ class TaskSupplier(val tasks: HashMap<Int, Task>) {
             nextId() to Task(
                 "Анжуманя",
                 "10 подход по 10 повтор",
-                LocalDateTime.of(2024, 4, 6, 20, 49),
+                LocalDate.of(2024, 4, 6),
                 Priority.URGENT
             ),
             nextId() to Task(
                 "Бегит",
                 "1 подход по 100 повтор",
-                LocalDateTime.of(2024, 4, 6, 20, 49),
+                LocalDate.of(2024, 4, 6),
                 Priority.LOW
             ),
             nextId() to Task(
                 "Прес качат",
                 "100 подход по 1 повтор",
-                LocalDateTime.of(2024, 4, 6, 20, 49),
+                LocalDate.of(2024, 4, 6),
                 Priority.HIGH
             ),
             nextId() to Task(
                 "Ест протеины",
                 "1 стакан с молоком и корицей",
-                LocalDateTime.of(2024, 4, 6, 20, 49),
+                LocalDate.of(2024, 4, 6),
                 Priority.MEDIUM
             ),
         )

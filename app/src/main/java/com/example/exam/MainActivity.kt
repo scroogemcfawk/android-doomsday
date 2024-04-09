@@ -3,7 +3,6 @@ package com.example.exam
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -28,7 +27,8 @@ import com.example.exam.ui.theme.ExamTheme
 enum class TopLevelScreen {
     MAIN,
     CREATE_TASK,
-    VIEW_TASK
+    VIEW_TASK,
+    EDIT_TASK
 }
 
 enum class MainScreen {
@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val navController = rememberNavController()
-            val viewModel = CoolestViewModel(navController)
+            val viewModel = NotAViewModel(navController)
             ExamTheme(
                 dynamicColor = false,
                 darkTheme = true
@@ -57,12 +57,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     composable(TopLevelScreen.CREATE_TASK.name) {
-                        CreateTaskScreen(
-                            viewModel = viewModel
-                        )
+                        CreateTaskScreen(viewModel = viewModel)
                     }
                     composable(TopLevelScreen.VIEW_TASK.name) {
                         ViewTaskScreen(viewModel = viewModel)
+                    }
+                    composable(TopLevelScreen.EDIT_TASK.name) {
+                        EditTaskScreen(viewModel = viewModel)
                     }
                 }
             }

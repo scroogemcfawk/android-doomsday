@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
 
-class CoolestViewModel(
+class NotAViewModel(
     val navController: NavController
 ) : ViewModel() {
 
@@ -24,8 +24,16 @@ class CoolestViewModel(
         navController.navigate(TopLevelScreen.VIEW_TASK.name)
     }
 
+    fun delete(id: Int) {
+        taskSupplier.delete(id)
+    }
+
     fun getSelected(): Task {
         return taskSupplier.tasks[selectedTaskState]!! // yeah, right?
+    }
+
+    fun updateSelected(task: Task) {
+        taskSupplier[selectedTaskState] = task
     }
 
     fun createTask() {

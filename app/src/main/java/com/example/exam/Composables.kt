@@ -1,6 +1,9 @@
 package com.example.exam
 
-import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,8 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,9 +32,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DatePickerState
-import androidx.compose.material3.DisplayMode
+import androidx.compose.material3.DismissDirection
+import androidx.compose.material3.DismissValue
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -39,33 +44,32 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SwipeToDismiss
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDismissState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.capitalize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.toLowerCase
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.text.isDigitsOnly
 import com.example.exam.ui.theme.CLR_BLACK
 import com.example.exam.ui.theme.CLR_BLUE
 import com.example.exam.ui.theme.CLR_DARK
@@ -74,10 +78,18 @@ import com.example.exam.ui.theme.CLR_GREEN
 import com.example.exam.ui.theme.CLR_LIGHT
 import com.example.exam.ui.theme.CLR_RED
 import com.example.exam.ui.theme.CLR_WHITE
-import com.example.exam.ui.theme.CLR_YELLOW
+import kotlinx.coroutines.delay
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.time.temporal.ChronoUnit
+import kotlin.time.Duration.Companion.days
+
+/*
+ * TODO
+ *  close button ?
+ */
 
 @Composable
 fun textFieldColors(): TextFieldColors {
@@ -92,8 +104,10 @@ fun textFieldColors(): TextFieldColors {
 }
 
 @Composable
-fun MainScreen(viewModel: CoolestViewModel, onCreateTask: () -> Unit = {}) {
-    Box(modifier = Modifier.fillMaxSize()) {
+fun MainScreen(viewModel: NotAViewModel, onCreateTask: () -> Unit = {}) {
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         PlusButton(viewModel = viewModel)
         val shape = RoundedCornerShape(24.dp)
         val buttonSize = 64.dp
@@ -156,7 +170,7 @@ fun EmptyMainPlaceholder() {
 }
 
 @Composable
-fun TaskList(viewModel: CoolestViewModel) {
+fun TaskList(viewModel: NotAViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -171,9 +185,16 @@ fun TaskList(viewModel: CoolestViewModel) {
         )
         LazyColumn {
             val t = viewModel.taskSupplier.tasks.toList()
-            items(t.sortedBy { if (it.second.complete.value) 1 else 0  }) {
-                TaskCard(it.second) {
-                    viewModel.select(it.first)
+            items(t.sortedBy { if (it.second.complete.value) 1 else 0  }) { it ->
+                SwipeToDeleteContainer(
+                    item = it,
+                    onDelete = {
+                        viewModel.delete(it.first)
+                    }
+                ) {
+                    TaskCard(it.second) {
+                        viewModel.select(it.first)
+                    }
                 }
             }
         }
@@ -228,7 +249,7 @@ fun TaskCard(task: Task, onClick: () -> Unit = {}) {
 }
 
 @Composable
-fun PlusButton(viewModel: CoolestViewModel) {
+fun PlusButton(viewModel: NotAViewModel) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxSize()
@@ -255,7 +276,7 @@ fun PlusButton(viewModel: CoolestViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateTaskScreen(viewModel: CoolestViewModel) {
+fun CreateTaskScreen(viewModel: NotAViewModel) {
     var headerState by remember{ mutableStateOf("") }
     var descriptionState by remember{ mutableStateOf("") }
     var expanded = remember {
@@ -267,6 +288,7 @@ fun CreateTaskScreen(viewModel: CoolestViewModel) {
     var deadLineDaysState = remember {
         mutableStateOf("7")
     }
+    var datePickerState = rememberDatePickerState()
 
     Column(
         verticalArrangement = Arrangement.SpaceBetween,
@@ -318,10 +340,11 @@ fun CreateTaskScreen(viewModel: CoolestViewModel) {
                     .fillMaxWidth()
                     .padding(0.dp, 0.dp, 0.dp, 16.dp),
             )
-            DeadlinePicker(
-                deadLineDaysState,
-                modifier = Modifier.padding(0.dp,0.dp,0.dp,16.dp)
-            )
+//            DeadlinePicker(
+//                deadLineDaysState,
+//                modifier = Modifier.padding(0.dp,0.dp,0.dp,16.dp)
+//            )
+            DeadlineDatePicker(datePickerState)
             PriorityDropDown(
                 expandedState = expanded,
                 priorityState = priorityState,
@@ -338,7 +361,8 @@ fun CreateTaskScreen(viewModel: CoolestViewModel) {
                             viewModel.addTask(Task(
                                 headerState,
                                 descriptionState,
-                                LocalDateTime.now().plusDays(deadLineDaysState.value.toLong()),
+                                Instant.ofEpochMilli(datePickerState.selectedDateMillis ?: Instant.now().toEpochMilli()).atZone(
+                                    ZoneId.systemDefault()).toLocalDate(),
                                 priorityState.value
                             ))
                             viewModel.navController.navigate(TopLevelScreen.MAIN.name)
@@ -359,26 +383,6 @@ fun CreateTaskScreen(viewModel: CoolestViewModel) {
 
         }
         Spacer(modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-fun DeadlinePicker(deadlineState: MutableState<String>, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        OutlinedTextField(
-            label = {
-                Text(text = "Days until a deadline")
-            },
-            value = if ((deadlineState.value.toIntOrNull() ?: 0) > 0) deadlineState.value else "",
-            onValueChange = ovc@{
-                val num = it.toIntOrNull() ?: it.dropLast(1).toIntOrNull() ?: "" // 😭😭😭
-                deadlineState.value = num.toString()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = textFieldColors()
-        )
     }
 }
 
@@ -471,7 +475,7 @@ fun NavigationBar(
 }
 
 @Composable
-fun ViewTaskScreen(viewModel: CoolestViewModel) {
+fun ViewTaskScreen(viewModel: NotAViewModel) {
     val task = viewModel.getSelected()
     Column(
         verticalArrangement = Arrangement.SpaceBetween
@@ -500,7 +504,9 @@ fun ViewTaskScreen(viewModel: CoolestViewModel) {
 
                 )
                 Button(
-                    onClick = { /*TODO*/ },
+                    onClick = {
+                        viewModel.navController.navigate(TopLevelScreen.EDIT_TASK.name)
+                    },
                     colors = ButtonDefaults.buttonColors(
                         contentColor = CLR_BLACK,
                         containerColor = CLR_WHITE
@@ -548,9 +554,269 @@ fun ViewTaskScreen(viewModel: CoolestViewModel) {
                         .background(
                             priorityColorMapper[task.priority] ?: CLR_BLACK,
                             shape = RoundedCornerShape(8.dp)
-                        ).height(32.dp).wrapContentHeight().padding(4.dp)
+                        )
+                        .height(32.dp)
+                        .wrapContentHeight()
+                        .padding(4.dp)
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTaskScreen(viewModel: NotAViewModel) {
+    val selcted = viewModel.getSelected()
+    var headerState by remember{ mutableStateOf(selcted.header) }
+    var descriptionState by remember{ mutableStateOf(selcted.description) }
+    var expanded = remember {
+        mutableStateOf(false)
+    }
+    var priorityState = remember {
+        mutableStateOf(selcted.priority)
+    }
+    var deadLineDaysState = remember {
+        mutableStateOf(ChronoUnit.DAYS.between(selcted.deadline, LocalDateTime.now()).days.inWholeDays.toString())
+    }
+    var datePickerState = rememberDatePickerState()
+
+    Column(
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.Start,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        NavigationBar(
+            text = "Add Task",
+            backwardNavigation = { viewModel.navController.navigate(TopLevelScreen.MAIN.name) }
+        )
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+//                .background(CLR_YELLOW)
+        ) {
+            Text(
+                text = "Header",
+                fontWeight = FontWeight.Medium,
+                fontSize = 20.sp,
+//                modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp)
+            )
+            TextField(
+                value = headerState,
+                onValueChange = { headerState = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(0.dp, 0.dp, 0.dp, 16.dp),
+                colors = textFieldColors()
+            )
+            OutlinedTextField(
+                value = descriptionState,
+                onValueChange = {
+                    descriptionState = if (it.length > 50) it.slice(0..49) else it
+                },
+                modifier = Modifier
+                    .fillMaxWidth(),
+                colors = textFieldColors(),
+                label = {
+                    Text(text = "Description")
+                },
+                minLines = 3,
+                maxLines = 5
+            )
+            Text(
+                text = "${descriptionState.length}/50",
+                textAlign = TextAlign.Right,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(0.dp, 0.dp, 0.dp, 16.dp),
+            )
+            DeadlineDatePicker(datePickerState)
+            PriorityDropDown(
+                expandedState = expanded,
+                priorityState = priorityState,
+                modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 16.dp)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                modifier = Modifier.height(40.dp)
+            ) {
+//                Spacer(modifier = Modifier.weight(1f))
+                Button(
+                    onClick = {
+                        if (headerState.isNotBlank() && deadLineDaysState.value.toIntOrNull() != null) {
+                            viewModel.updateSelected(
+                                Task(
+                                    headerState,
+                                    descriptionState,
+                                    Instant.ofEpochMilli(datePickerState.selectedDateMillis ?: Instant.now().toEpochMilli()).atZone(
+                                        ZoneId.systemDefault()).toLocalDate(),
+                                    priorityState.value
+                                )
+                            )
+                            viewModel.navController.popBackStack()
+                        }
+                    },
+                    modifier = Modifier.weight(3f),
+                ) {
+                    Text(
+                        text = "Save",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .wrapContentHeight(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+//                Spacer(modifier = Modifier.weight(1f))
+            }
+
+        }
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeadlineDatePicker(datePickerState: DatePickerState) {
+    val openDialog = remember { mutableStateOf(false) }
+    val confirmEnabled = remember {
+        derivedStateOf { datePickerState.selectedDateMillis != null }
+    }
+    var dtf = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    var colors = DatePickerDefaults.colors(
+        containerColor = CLR_WHITE,
+        titleContentColor = CLR_BLACK,
+        selectedDayContainerColor = CLR_BLACK,
+        selectedDayContentColor = CLR_WHITE,
+        disabledDayContentColor = CLR_BLACK,
+        subheadContentColor = CLR_BLACK,
+        headlineContentColor = CLR_BLACK,
+        weekdayContentColor = CLR_BLACK,
+        yearContentColor = CLR_BLACK,
+        dayContentColor = CLR_BLACK,
+        selectedYearContentColor = CLR_WHITE,
+        currentYearContentColor = CLR_BLACK,
+        dayInSelectionRangeContentColor = CLR_BLACK
+    )
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+    ) {
+        Text(
+            text = if (confirmEnabled.value)
+                Instant.ofEpochMilli(datePickerState.selectedDateMillis!!)
+                    .atZone(ZoneId.systemDefault()).toLocalDate().format(dtf)
+            else Instant.now().atZone(ZoneId.systemDefault()).toLocalDate().format(dtf),
+        )
+        Button(
+            onClick = { openDialog.value = true },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = CLR_WHITE,
+                contentColor = CLR_BLUE
+            )
+        ) {
+            Icon(Icons.Filled.DateRange, contentDescription = "Calendar")
+        }
+    }
+    if (openDialog.value) {
+        DatePickerDialog(
+            colors = colors,
+            onDismissRequest = {
+                openDialog.value = false
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        openDialog.value = false
+                    },
+                    enabled = confirmEnabled.value
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        openDialog.value = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = colors
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> SwipeToDeleteContainer(
+    item: T,
+    onDelete: (T) -> Unit,
+    animationDuration: Int = 500,
+    content: @Composable (T) -> Unit
+) {
+    var isRemoved by remember {
+        mutableStateOf(false)
+    }
+    val state = rememberDismissState(
+        confirmValueChange = { value ->
+            if (value == DismissValue.DismissedToStart) {
+                isRemoved = true
+                true
+            } else {
+                false
+            }
+        }
+    )
+
+    LaunchedEffect(key1 = isRemoved) {
+        if(isRemoved) {
+            delay(animationDuration.toLong())
+            onDelete(item)
+        }
+    }
+
+    AnimatedVisibility(
+        visible = !isRemoved,
+        exit = shrinkVertically(
+            animationSpec = tween(durationMillis = animationDuration),
+            shrinkTowards = Alignment.Top
+        ) + fadeOut()
+    ) {
+        SwipeToDismiss(
+            state = state,
+            background = {
+                DeleteBackground()
+            },
+            dismissContent = { content(item) },
+            directions = setOf(DismissDirection.EndToStart)
+        )
+    }
+}
+
+@Composable
+fun DeleteBackground() {
+    val color = Color.Transparent
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color)
+            .padding(16.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = null,
+            tint = CLR_RED
+        )
     }
 }

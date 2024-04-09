@@ -2,6 +2,12 @@
 <project version="4">
   <component name="deploymentTargetDropDown">
     <value>
+      <entry key="DatePickerDialogSample">
+        <State />
+      </entry>
+      <entry key="DeadlineDatePicker">
+        <State />
+      </entry>
       <entry key="Demo_ExposedDropdownMenuBox">
         <State />
       </entry>

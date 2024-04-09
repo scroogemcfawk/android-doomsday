@@ -6,12 +6,13 @@ import com.example.exam.ui.theme.CLR_BLUE
 import com.example.exam.ui.theme.CLR_GREEN
 import com.example.exam.ui.theme.CLR_RED
 import com.example.exam.ui.theme.CLR_YELLOW
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 data class Task(
     val header: String,
     val description: String,
-    val deadline: LocalDateTime,
+    val deadline: LocalDate,
     val priority: Priority,
     var complete: MutableState<Boolean> = mutableStateOf(false) // IDK HEEEELP 😭😭😭😭
 ) {
